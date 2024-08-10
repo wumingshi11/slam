@@ -1,1 +1,4 @@
 add_subdirectory(learn_engin)
+add_subdirectory(learn_sophus)
+add_subdirectory(learn_opencv)
+add_subdirectory(learn_optimi)

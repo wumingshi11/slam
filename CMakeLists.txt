@@ -50,4 +50,33 @@ include_directories(${GTest_INCLUDE_DIRS})
 find_package(GLOG REQUIRED)
 include_directories(${GLOG_INCLUDE_DIRS})
 
+# # 查找 g2o 库
+# find_package(g2o REQUIRED)
+# include_directories(${G2O_INCLUDE_DIRS})
+
+# # 检查 g2o 是否找到
+# if(g2o_FOUND)
+#     message(STATUS "g2o library found")
+#     message(STATUS "g2o header : ${g2o_INCLUDE_DIRS}")
+# else()
+#     message(FATAL_ERROR "g2o library not found")
+# endif()
+
+# g2o 使用thirdparty中的
+include_directories(${PROJECT_SOURCE_DIR}/thirdparty/g2o/)
+set(g2o_libs
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_stuff.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_core.so
+	# ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_solver_cholmod.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_solver_dense.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_solver_csparse.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_csparse_extension.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_types_sba.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_types_slam2d.so
+        ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o_types_slam3d.so
+        ${CSPARSE_LIBRARY}
+        ${CHOLMOD_LIBRARY}
+        )
+
+
 add_subdirectory(src)

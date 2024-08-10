@@ -5,6 +5,14 @@
 #include <Eigen/Dense>
 #include <iostream>
 
+TEST(EigenTest, init) {
+  Eigen::Matrix<double, 3, 3> m;
+  m.setIdentity();
+  EXPECT_EQ(m(1,1),1);
+  m.setZero();
+  EXPECT_EQ(m(1,1),0);
+}
+
 TEST(EigenTest, baseType) {
   // Eigen最重要类型。矩阵
   Eigen::Matrix<double, 3, 3> m;
@@ -44,6 +52,20 @@ TEST(EigenTest, quaterniond) {
   Eigen::Quaternion<double> q2(R);
   LOG(INFO) << q2.coeffs().transpose();
 }
+
+TEST(sophus, transform){
+   Eigen::Matrix3d R = Eigen::AngleAxisd(M_PI/2,Eigen::Vector3d(0,0,1)).toRotationMatrix();
+   Eigen::Quaterniond q(R);
+   
+   Eigen::Matrix3d R2 = Eigen::AngleAxisd(M_PI/2 + 2 * M_PI,Eigen::Vector3d(0,0,1)).toRotationMatrix();
+   Eigen::Quaterniond q2(R2);
+   
+   LOG(INFO) << R;
+   LOG(INFO) << q.coeffs().transpose();
+
+    LOG(INFO) << R2;
+   LOG(INFO) << q2.coeffs().transpose();
+} 
 
 TEST(EigenTest, compute) {
   // 向量运算
