@@ -2,6 +2,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/transformations.h>
 
 #include <Eigen/Core>
 #include <iostream>
@@ -68,6 +69,15 @@ void computeKeyPointsAndDesp(FRAME& frame, const std::string& detector,
 // estimateMotion 计算两个帧之间的运动
 // 输入：帧1和帧2, 相机内参
 RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2, rgbd_camera& camera);
+
+// opencv的旋转向量和平移转为Eigen::Isometry3d
+Eigen::Isometry3d cvMat2Eigen(const cv::Mat& rvec, const cv::Mat& tvec);
+
+// 合并点云
+PointCloud::Ptr mergePointCloud(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2,
+                                Eigen::Isometry3d T);
+PointCloud::Ptr joinPointCloud(PointCloud::Ptr cloud1, FRAME& frame2,
+                               Eigen::Isometry3d T,rgbd_camera& camera);
 
 // 参数读取类
 class ParameterReader {

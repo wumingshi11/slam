@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <opencv2/calib3d/calib3d.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
 #include "glog/logging.h"
@@ -71,7 +72,8 @@ void orb_feature(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
 }
 
 // computeKeyPointsAndDesp 同时提取关键点与特征描述子
-void computeKeyPointsAndDesp(FRAME& frame, string detector1, string descriptor1) {
+void computeKeyPointsAndDesp(FRAME& frame, string detector1,
+                             string descriptor1) {
   cv::Ptr<cv::FeatureDetector> detector = cv::ORB::create();
   if (detector.empty()) {
     LOG(ERROR) << "detector is empty!";
@@ -143,4 +145,38 @@ RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2,
   result.inliers = inliers.rows;
 
   return result;
+}
+
+Eigen::Isometry3d cvMat2Eigen(const cv::Mat& rvec, const cv::Mat& tvec) {
+  auto result = Eigen::Isometry3d::Identity();
+  cv::Mat R;
+  cv::Rodrigues(rvec, R);
+  Eigen::Matrix3d R_eigen;
+  cv::cv2eigen(R, R_eigen);
+  Eigen::Vector3d t_eigen;
+  cv::cv2eigen(tvec, t_eigen);
+  result.rotate(R_eigen);
+  result.pretranslate(t_eigen);
+  return result;
+}
+
+PointCloud::Ptr mergePointCloud(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2,
+                                Eigen::Isometry3d T) {
+  PointCloud::Ptr result{new PointCloud};
+  pcl::transformPointCloud(*cloud1, *result, T.matrix());
+  *result += *cloud2;
+  // 使用体素法降采样点
+  pcl::VoxelGrid<PointT> voxel_grid_filter;
+  voxel_grid_filter.setLeafSize(0.01, 0.01, 0.01);
+  PointCloud::Ptr filtered_cloud;
+  voxel_grid_filter.setInputCloud(result);
+  voxel_grid_filter.filter(*filtered_cloud);
+  return filtered_cloud;
+}
+
+PointCloud::Ptr joinPointCloud(PointCloud::Ptr cloud1, FRAME& frame2,
+                               Eigen::Isometry3d T, rgbd_camera& camera) {
+  PointCloud::Ptr newCloud =
+      image2PointCloud(newFrame.rgb, newFrame.depth, camera);
+  return mergePointCloud(cloud1, newCloud, T);
 }
