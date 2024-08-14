@@ -1,9 +1,22 @@
+#include <g2o/core/block_solver.h>
+#include <g2o/core/g2o_core_api.h>
+#include <g2o/core/optimization_algorithm_levenberg.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
 
 #include <filesystem>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
+
+#include "g2o/core/robust_kernel.h"
+#include "g2o/core/robust_kernel_impl.h"
+#include "g2o/types/slam3d/edge_se3.h"
+#include "g2o/types/slam3d/vertex_se3.h"
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/point_cloud.h>
+#include <pcl/filters/passthrough.h>
 
 #include "util.h"
 
@@ -149,7 +162,234 @@ TEST(rgbd_slam, featureAndMatch) {
   }
 }
 
-int main(int argc, char const *argv[]) {
+DEFINE_string(merge_result_path, "../../data/rgbd_slam/data4/cloud.pcd", "");
+// 合并点云测试
+TEST(rgbd_slam, joinPointCloud) {
+  rgbd_camera cam{FLAGS_camera_fx, FLAGS_camera_fy, FLAGS_camera_cx,
+                  FLAGS_camera_cy, FLAGS_camera_factor};
+  auto pc1 = generateCloud(FLAGS_featureAndMatch_image1,
+                           FLAGS_featureAndMatch_depth1, cam);
+  FRAME frame1;
+  frame1.rgb = cv::imread(FLAGS_featureAndMatch_image1);
+  frame1.depth = cv::imread(FLAGS_featureAndMatch_depth1, -1);
+  computeKeyPointsAndDesp(frame1, "ORB", "ORB");
+  FRAME frame2;
+  frame2.rgb = cv::imread(FLAGS_featureAndMatch_image2);
+  frame2.depth = cv::imread(FLAGS_featureAndMatch_depth2, -1);
+  computeKeyPointsAndDesp(frame2, "ORB", "ORB");
+  RESULT_OF_PNP result = estimateMotion(frame1, frame2, cam);
+  Eigen::Isometry3d T = cvMat2Eigen(result.rvec, result.tvec);
+  auto pc2 = joinPointCloud(pc1, frame2, T, cam);
+  pcl::io::savePCDFile(FLAGS_merge_result_path, *pc2);
+}
+
+// 多张图像点云合并
+DEFINE_string(merge_mult_img_result_path,
+              "../../data/rgbd_slam/data5/cloud.pcd", "");
+TEST(rbgd_slam, merge_mult_img) {
+  LOG(INFO) << "merge_mult_img start";
+  auto& params = ParameterReader::getInstance();
+  rgbd_camera cam{FLAGS_camera_fx, FLAGS_camera_fy, FLAGS_camera_cx,
+                  FLAGS_camera_cy, FLAGS_camera_factor};
+  auto start_index = std::atoi(params.getData("start_index").c_str());
+  auto end_index = std::atoi(params.getData("end_index").c_str());
+  auto current_index = start_index;
+  auto rgb_path = params.getData("rgb_path");
+  auto depth_path = params.getData("depth_path");
+  auto rgb_type = params.getData("rgb_extension");
+  auto depth_type = params.getData("depth_extension");
+  auto max_norm = std::atof(params.getData("max_norm").c_str());
+  auto last_frame =
+      readFrame(current_index, rgb_path, depth_path, rgb_type, depth_type);
+  computeKeyPointsAndDesp(last_frame, "ORB", "ORB");
+  auto point_cloud = generateCloud(last_frame.rgb, last_frame.depth, cam);
+  size_t inlier_small_fram_num = 0, t_big_fram_num = 0;
+  for (++current_index; current_index <= end_index; current_index++) {
+    auto start_time = std::chrono::system_clock::now();
+    auto curr_frame =
+        readFrame(current_index, rgb_path, depth_path, rgb_type, depth_type);
+    computeKeyPointsAndDesp(curr_frame, "ORB", "ORB");
+    auto result = estimateMotion(curr_frame, last_frame, cam);
+    if (result.inliers < 5) {
+      LOG(INFO) << "Not enough inliers: " << result.inliers;
+      inlier_small_fram_num++;
+      continue;
+    }
+    if (normofTransform(result.rvec, result.tvec) > max_norm) {
+      LOG(INFO) << "Transfor too big: "
+                << normofTransform(result.rvec, result.tvec);
+      t_big_fram_num++;
+      continue;
+    }
+
+    auto T = cvMat2Eigen(result.rvec, result.tvec);
+    point_cloud = joinPointCloud(point_cloud, curr_frame, T, cam);
+    last_frame = curr_frame;
+    auto end_time = std::chrono::system_clock::now();
+    LOG(INFO) << current_index << " time cost "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     end_time - start_time)
+                     .count();
+    LOG(INFO) << inlier_small_fram_num << " " << t_big_fram_num;
+  }
+  pcl::io::savePCDFile(FLAGS_merge_mult_img_result_path, *point_cloud);
+}
+
+// 测试离线回环检测
+TEST(rgbd_slam, loop_closure) {
+  // 前面部分和vo是一样的
+  ParameterReader& params = ParameterReader::getInstance();
+  int startIndex = atoi(params.getData("start_index").c_str());
+  int endIndex = atoi(params.getData("end_index").c_str());
+  auto rgb_path = params.getData("rgb_path");
+  auto depth_path = params.getData("depth_path");
+  auto rgb_type = params.getData("rgb_extension");
+  auto depth_type = params.getData("depth_extension");
+  // 所有的关键帧都放在了这里
+  vector<FRAME> keyframes;
+  // initialize
+  LOG(INFO) << "Initializing ...";
+  int currIndex = startIndex;  // 当前索引为currIndex
+  FRAME currFrame = readFrame(currIndex, rgb_path, depth_path, rgb_type,
+                              depth_type);  // 上一帧数据
+
+  string detector = "ORB";
+  string descriptor = "ORB";
+  rgbd_camera camera{FLAGS_camera_fx, FLAGS_camera_fy, FLAGS_camera_cx,
+                     FLAGS_camera_cy, FLAGS_camera_factor};
+  computeKeyPointsAndDesp(currFrame, detector, descriptor);
+  PointCloud::Ptr cloud = generateCloud(currFrame.rgb, currFrame.depth, camera);
+
+  /*******************************
+  // 新增:有关g2o的初始化
+  *******************************/
+  // 初始化求解器
+  // 把g2o的定义放到前面
+  typedef g2o::BlockSolver_6_3 SlamBlockSolver;
+  typedef g2o::LinearSolverEigen<SlamBlockSolver::PoseMatrixType>
+      SlamLinearSolver;
+  std::unique_ptr<SlamLinearSolver> linearSolver =
+      std::make_unique<g2o::LinearSolverEigen<SlamBlockSolver::PoseMatrixType>>();
+  linearSolver->setBlockOrdering(false);
+  std::unique_ptr<SlamBlockSolver> blockSolver =
+      std::unique_ptr<SlamBlockSolver>(new SlamBlockSolver(std::move(linearSolver)));
+  g2o::OptimizationAlgorithmLevenberg* solver =
+      new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+
+  g2o::SparseOptimizer globalOptimizer;  // 最后用的就是这个东东
+  globalOptimizer.setAlgorithm(solver);
+  // 输出调试信息
+  globalOptimizer.setVerbose(true);
+
+  // 向globalOptimizer增加第一个顶点
+  g2o::VertexSE3* v = new g2o::VertexSE3();
+  v->setId(currIndex);
+  v->setEstimate(Eigen::Isometry3d::Identity());  //估计为单位矩阵
+  v->setFixed(true);  //第一个顶点固定，不用优化
+  globalOptimizer.addVertex(v);
+
+  keyframes.push_back(currFrame);
+
+  double keyframe_threshold = atof(params.getData("keyframe_threshold").c_str());
+  bool check_loop_closure = params.getData("check_loop_closure") == string("yes");
+
+  for (currIndex = startIndex + 1; currIndex < endIndex; currIndex++) {
+    cout << "Reading files " << currIndex << endl;
+    FRAME currFrame = readFrame(currIndex, rgb_path, depth_path, rgb_type,
+                                depth_type);  // 读取currFrame
+    computeKeyPointsAndDesp(currFrame, detector, descriptor);  //提取特征
+    CHECK_RESULT result =
+        checkKeyframes(keyframes.back(), currFrame, globalOptimizer,
+                       camera);  //匹配该帧与keyframes里最后一帧
+    switch (result)              // 根据匹配结果不同采取不同策略
+    {
+      case NOT_MATCHED:
+        //没匹配上，直接跳过
+        cout << "Not enough inliers." << endl;
+        break;
+      case TOO_FAR_AWAY:
+        // 太近了，也直接跳
+        cout << "Too far away, may be an error." << endl;
+        break;
+      case TOO_CLOSE:
+        // 太远了，可能出错了
+        cout << "Too close, not a keyframe" << endl;
+        break;
+      case KEYFRAME:
+        cout << "This is a new keyframe" << endl;
+        // 不远不近，刚好
+        /**
+         * This is important!!
+         * This is important!!
+         * This is important!!
+         * (very important so I've said three times!)
+         */
+        // 检测回环
+        if (check_loop_closure) {
+          checkNearbyLoops(keyframes, currFrame, globalOptimizer, camera);
+          checkRandomLoops(keyframes, currFrame, globalOptimizer, camera);
+        }
+
+        keyframes.push_back(currFrame);
+
+        break;
+      default:
+        break;
+    }
+  }
+
+  // 优化
+  cout << "optimizing pose graph, vertices: "
+       << globalOptimizer.vertices().size() << endl;
+  globalOptimizer.save("./result_before.g2o");
+  globalOptimizer.initializeOptimization();
+  globalOptimizer.optimize(100);  //可以指定优化步数
+  globalOptimizer.save("./result_after.g2o");
+  cout << "Optimization done." << endl;
+
+  // 拼接点云地图
+  cout << "saving the point cloud map..." << endl;
+  PointCloud::Ptr output(new PointCloud());  //全局地图
+  PointCloud::Ptr tmp(new PointCloud());
+
+  pcl::VoxelGrid<PointT> voxel;  // 网格滤波器，调整地图分辨率
+  pcl::PassThrough<PointT>
+      pass;  // z方向区间滤波器，由于rgbd相机的有效深度区间有限，把太远的去掉
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(0.0, 4.0);  // 4m以上就不要了
+
+  double gridsize =
+      atof(params.getData("voxel_grid").c_str());  //分辨图可以在parameters.txt里调
+  voxel.setLeafSize(gridsize, gridsize, gridsize);
+
+  for (size_t i = 0; i < keyframes.size(); i++) {
+    // 从g2o里取出一帧
+    g2o::VertexSE3* vertex = dynamic_cast<g2o::VertexSE3*>(
+        globalOptimizer.vertex(keyframes[i].frameID));
+    Eigen::Isometry3d pose = vertex->estimate();  //该帧优化后的位姿
+    PointCloud::Ptr newCloud =
+        generateCloud(keyframes[i].rgb, keyframes[i].depth, camera);  //转成点云
+    // 以下是滤波
+    voxel.setInputCloud(newCloud);
+    voxel.filter(*tmp);
+    pass.setInputCloud(tmp);
+    pass.filter(*newCloud);
+    // 把点云变换后加入全局地图中
+    pcl::transformPointCloud(*newCloud, *tmp, pose.matrix());
+    *output += *tmp;
+    tmp->clear();
+    newCloud->clear();
+  }
+
+  voxel.setInputCloud(output);
+  voxel.filter(*tmp);
+  //存储
+  pcl::io::savePCDFile("./result.pcd", *tmp);
+
+  cout << "Final map is saved." << endl;
+}
+
+int main(int argc, char const* argv[]) {
   google::InitGoogleLogging(argv[0]);
   FLAGS_stderrthreshold = google::INFO;
   testing::InitGoogleTest();

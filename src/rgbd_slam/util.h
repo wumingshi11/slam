@@ -1,8 +1,11 @@
+#include <g2o/core/optimizable_graph.h>
+#include <g2o/core/sparse_optimizer.h>
 #include <gflags/gflags.h>
+#include <glog/logging.h>
+#include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/transformations.h>
 
 #include <Eigen/Core>
 #include <iostream>
@@ -34,6 +37,8 @@ PointCloud::Ptr generateCloud(const std::string& img_path,
                               const std::string& depth_path,
                               const rgbd_camera& cam,
                               const std::string& save_path = "");
+PointCloud::Ptr generateCloud(const cv::Mat& img, const cv::Mat& depth,
+                              const rgbd_camera& cam);
 
 /// @brief 根据深度图，将像素坐标转为xyz(相机坐标系)
 /// @param uv 像素位置
@@ -54,6 +59,7 @@ struct FRAME {
   cv::Mat rgb, depth;       //该帧对应的彩色图与深度图
   cv::Mat desp;             //特征描述子
   vector<cv::KeyPoint> kp;  //关键点
+  int frameID;
 };
 
 // PnP 结果
@@ -77,15 +83,43 @@ Eigen::Isometry3d cvMat2Eigen(const cv::Mat& rvec, const cv::Mat& tvec);
 PointCloud::Ptr mergePointCloud(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2,
                                 Eigen::Isometry3d T);
 PointCloud::Ptr joinPointCloud(PointCloud::Ptr cloud1, FRAME& frame2,
-                               Eigen::Isometry3d T,rgbd_camera& camera);
+                               Eigen::Isometry3d T, rgbd_camera& camera);
+
+// 度量坐标系变换
+double normofTransform(cv::Mat rvec, cv::Mat tvec) {
+  return std::fabs(std::min(cv::norm(rvec), 2 * M_PI - cv::norm(rvec))) +
+         std::fabs(cv::norm(tvec));
+}
+
+FRAME readFrame(int index, const std::string& rgb_path,
+                const std::string& depth_file_path,
+                const std::string& rgb_type = ".png",
+                const std::string& depth_type = ".png");
+
+// 检测两个帧，结果定义
+enum CHECK_RESULT { NOT_MATCHED = 0, TOO_FAR_AWAY, TOO_CLOSE, KEYFRAME };
+// 函数声明
+CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti,
+                            rgbd_camera& camera, bool is_loops = false);
+// 检测近距离的回环
+void checkNearbyLoops(vector<FRAME>& frames, FRAME& currFrame,
+                      g2o::SparseOptimizer& opti, rgbd_camera& camera);
+// 随机检测回环
+void checkRandomLoops(vector<FRAME>& frames, FRAME& currFrame,
+                      g2o::SparseOptimizer& opti, rgbd_camera& camera);
 
 // 参数读取类
 class ParameterReader {
  public:
+  static ParameterReader& getInstance() {
+    static ParameterReader pr;
+    return pr;
+  }
   ParameterReader(std::string filename = "./parameters.txt") {
     std::ifstream fin(filename.c_str());
     if (!fin) {
       cerr << "parameter file does not exist." << std::endl;
+      assert(0);
       return;
     }
     while (!fin.eof()) {
@@ -108,7 +142,7 @@ class ParameterReader {
   string getData(string key) {
     std::map<std::string, std::string>::iterator iter = data.find(key);
     if (iter == data.end()) {
-      std::cerr << "Parameter name " << key << " not found!" << std::endl;
+      LOG(ERROR) << "Parameter name " << key << " not found!" << std::endl;
       return string("NOT_FOUND");
     }
     return iter->second;
