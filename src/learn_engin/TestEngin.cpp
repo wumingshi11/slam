@@ -109,6 +109,8 @@ Eigen::Vector3d v;
   // EXPECT_EQ(x4,x5);
 }
 
+
+
 int main(int argc, char const *argv[]) {
   google::InitGoogleLogging(argv[0]);
   FLAGS_stderrthreshold = google::INFO;
