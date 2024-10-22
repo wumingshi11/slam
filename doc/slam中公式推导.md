@@ -124,7 +124,8 @@ Z
 \end{bmatrix} = exp(\hat{\phi})\begin{bmatrix}
 X\\
 Y \\
-Z
+Z \\
+1
 \end{bmatrix} \\
 e =\begin{bmatrix}
 u_s \\
@@ -140,7 +141,10 @@ $$
 
 ## 位姿误差
 
-位姿误差为对R的导数，
+位姿误差为对R的导数
+$$
+\frac{\partial e}{\partial T} = \frac{\partial e}{\partial p^`}\frac{\partial p^`}{\partial T}
+$$
 
 先求 e 对 P_的导数
 
@@ -153,9 +157,12 @@ $$
 \end{bmatrix} \\
 \frac{\partial p^`}{\partial T} = \begin{bmatrix} I & -\hat{p^`}  \\
 0 & 0
-\end{bmatrix} = \begin{bmatrix} 1&0&0&0&Z^`&-Y^` \\
+\end{bmatrix}
+
+\begin{bmatrix} 1&0&0&0&Z^`&-Y^` \\
 0&1&0&-Z^`&0&X^` \\
 0&0&1&Y^`&-X^`&0\end{bmatrix} \\ 
+注意:前面是对t的倒数，后面是对R的倒数，g2o中顺序相反\\
 \frac{\partial e}{\partial T}  = \frac{\partial e}{\partial P^`}\frac{\partial p^`}{\partial T}
 $$
 
