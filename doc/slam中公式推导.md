@@ -334,3 +334,53 @@ x_k^+ = x_k^- + K(z_k - C_kx_k^-) \\ P_K^+ = (I - KC_k)P_k^-
 $$
 
 # 李代数
+## 李代数的引出
+$$
+R(t)R(t)^T = I \\
+对t 求导，得到 \\
+R(t)^{'}R(t)^T + R(t)R(t)^{T'} = 0 \\
+R(t)^{'}R(t)^T = - R(t)R(t)^{T'} = -(R(t)^{'}R(t)^T)^{T}\\
+即上面是个反对称矩阵 \\
+令 R(t)^{'}R(t)^T = {\Phi(t)}^{\Lambda} \\
+R(t)^{'} = {\Phi(t)}^{\Lambda} * R(t)
+解此方程，可得：\\
+R(t) = e^{t{\Phi(t)}^{\Lambda}} \\
+$$
+由上式可推导出：任何一个R矩阵都可以表示为$e^{t{\Phi(t)}^{\Lambda}}，其中t为实数，t{\Phi(t)}^{\Lambda}为李代数$。（一对多）
+
+## 旋转矩阵和李代数的对应关系
+不加证明给出以下转换：
+$$
+\\ 李代数转为旋转矩阵 \\
+R = exp(\theta \hat{a}) = cos(\theta)I + (1-cos(\theta))aa^T + sin(\theta)a^{\Lambda}  （1.1）\\
+旋转矩阵转为李代数 \\
+\theta = arccos((trace(R)-I)/2) \\
+Ra = a \\
+
+当 \theta  = 0 时，R = I \\
+当 \theta -> 0 时，R = I + \theta a^{\Lambda}  根据此公式，进行扰动求导 （1.2）
+$$
+### 进一步，R随$\Phi$的变换
+$$
+J_l = \frac{sin\theta}{\theta} + (1 - \frac{sin\theta}{\theta})aa^T +  \frac{1 - cos\theta}{2}a^{\Lambda} \\
+J_r = J_l(-\Phi)  \\
+
+R2 = exp({(\Phi + \Delta \Phi)}^{\Lambda}) \\
+= exp({\Phi }^{\Lambda})exp({(J_r\Delta \Phi)}^{\Lambda} ) \\
+= exp({(J_l\Delta \Phi)}^{\Lambda}) exp({\Phi }^{\Lambda})  （2）\\ 
+（省略反算）
+根据此公式进行李代数求导
+$$
+## 求导
+引入李代数的原因就是为了方便求导。R是一个3*3的矩阵，求导比较复杂。转而求李代数的倒数。分别为李代数求导和扰动求导
+### 李代数求导
+根据 式2，可求出李代数加一个扰动的导数。
+$$
+\frac{\partial exp((\Phi + \Delta \Phi)^{\Lambda})p}{\partial \Delta\Phi} = -(Rp)^{\Lambda}J_l
+$$
+### 扰动求导
+根据式1.2，可求出李代数的一个扰动的导数。
+$$
+\frac{\partial exp((\Delta \Phi)^{\Lambda})exp((\Phi )^{\Lambda})p}{\partial \Delta\Phi} = - (Rp)^{\Lambda} \\
+\frac{\partial exp((\Phi )^{\Lambda}) exp((\Delta \Phi)^{\Lambda}) p}{\partial \Delta\Phi} = - Rp^{\Lambda}
+$$
