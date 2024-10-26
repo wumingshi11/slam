@@ -360,7 +360,7 @@ Ra = a \\
 当 \theta  = 0 时，R = I \\
 当 \theta -> 0 时，R = I + \theta a^{\Lambda}  根据此公式，进行扰动求导 （1.2）
 $$
-### 进一步，R随$\Phi$的变换
+### 进一步，R随$\Phi$的变换（一阶近似）
 $$
 J_l = \frac{sin\theta}{\theta} + (1 - \frac{sin\theta}{\theta})aa^T +  \frac{1 - cos\theta}{2}a^{\Lambda} \\
 J_r = J_l(-\Phi)  \\
@@ -378,9 +378,58 @@ $$
 $$
 \frac{\partial exp((\Phi + \Delta \Phi)^{\Lambda})p}{\partial \Delta\Phi} = -(Rp)^{\Lambda}J_l
 $$
+### 李代数伴随性质
+$$
+RExp(\Phi )R^T = exp(R\Phi^{\Lambda}R^T) = Exp(R\Phi) \\
+ Exp(\Phi)R=  R Exp(R^T\Phi) = R exp((R^T\Phi)^{\Lambda}) 
+$$
 ### 扰动求导
 根据式1.2，可求出李代数的一个扰动的导数。
 $$
 \frac{\partial exp((\Delta \Phi)^{\Lambda})exp((\Phi )^{\Lambda})p}{\partial \Delta\Phi} = - (Rp)^{\Lambda} \\
-\frac{\partial exp((\Phi )^{\Lambda}) exp((\Delta \Phi)^{\Lambda}) p}{\partial \Delta\Phi} = - Rp^{\Lambda}
+\frac{\partial exp((\Phi )^{\Lambda}) exp((\Delta \Phi)^{\Lambda}) p}{\partial \Delta\Phi} = - Rp^{\Lambda} \\
+
 $$
+对R的导数
+$$
+\frac{\partial log(R_1R_2))}{\partial R_1} = \lim_{\phi->0} \frac{log(R_1exp(\phi^{\Lambda})R_2) - log(R_1R_2)}{\phi} \\
+= \lim_{\phi->0} \frac{log(R_1R_2exp((R_2^T\phi)^{\Lambda})) - log(R_1R_2)}{\phi} \\
+= \lim_{\phi->0} \frac{log(exp(log(R_1R_2) + J^{-1}(log(R_1R_2))(R_2^T\phi)) - log(R_1R_2)}{\phi} \\
+= J^{-1}(log(R_1R_2))R_2^T \\
+第二个 \\
+\frac{\partial log(R_1R_2))}{\partial R_1} = J^{-1}(log(R_1R_2))
+$$
+
+# 运动学
+运动学这一章中R，t为相机坐标系到世界坐标系的变换。不同于14讲中的。
+## 李群视角下的运动学
+### 旋转矩阵，角速度
+$$
+\dot{R} = Rw^{\Lambda} (w瞬时速度) \\
+\Delta{R} = Exp(w^{\Lambda} \Delta t)) (瞬时变换，有上式解的)\\
+R = R_0 * Exp(w^{\Lambda} \Delta t) 
+$$
+### 线速度
+先考虑一个问题，相机坐标系下的速度如何转为世界坐标系下的速度。如果没有旋转：$ v_w = Rv_c$
+如果有旋转呢？ 根据$p_w = R_{wc}p_c + t$，可以得到：$v_w = Rv_c + w \times (Rp_0 + t)$
+$$
+p_1 = R_{12}p_2 + t  \\
+分别对R和p求导 关于时间的导数\\
+v_1 = \dot{p_1} = R_{12}v_c + R_{12}w^{\Lambda} p_2 = R_{12} (v_2 + w^{\Lambda}p_2)\\
+$$
+补充：
+p1，p2指什么，v1，v2指什么？ 上述公式有什么物理意义？ 与我们关注的车的速度有什么关系？
+- 如果车辆不发生转动，则v1和v2是同一个向量在不同坐标系的转换。如果车辆
+发生转动，则不是同一个向量。
+- 采用微分的思想，将p当作车辆的位置，v_2车辆的t时刻的瞬时速度（相对于***上一个时刻***车辆坐标系下，该坐标系在一小段时间内是静止的）v2由轮速记提供或者通过IMU计算。
+- 实时情况下，在车辆坐标系下，车辆速度始终为0。 
+- 下一个车辆坐标系的变换可通过车辆速度计算。
+
+### 线性加速度
+对v求导：
+$$
+a_1 = \dot{v_1} = \dot{R}_{12}（v_2 + w^{\Lambda} p_2） + R_{12} (\dot{v_2} + \dot{w}^{\Lambda} p_2 + w^{\Lambda}\dot{p_2})  \\  = R_{12}w^{\Lambda}(v_2 + w^{\Lambda} p_2) + R_{12}(\dot{v_2} + \dot{w}^{\Lambda} p_2 +  w^{\Lambda}\dot{p_2}) \\ = R_{12} (\dot{v_2} + 2w^{\Lambda} v_2 + \dot{w}^{\Lambda} p_2 + w^{\Lambda} w^{\Lambda} p_2) 
+$$
+运动中一般舍弃后3项。
+
+
