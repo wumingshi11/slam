@@ -1,5 +1,7 @@
 # Prerequisites
 *.d
+.vscode
+data/*
 
 # Compiled Object files
 *.slo
@@ -20,6 +22,7 @@
 *.mod
 *.smod
 
+
 # Compiled Static libraries
 *.lai
 *.la
@@ -30,3 +33,8 @@
 *.exe
 *.out
 *.app
+
+# build
+build/*
+*/build/*
+.zip

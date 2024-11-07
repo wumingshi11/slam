@@ -88,6 +88,7 @@ $$
 ### 数据结构
 ```c++
     double dt_ = 0;                          // 整体预积分时间
+    // R,v,p
     Mat9d cov_ = Mat9d::Zero();              // 累计噪声矩阵
     // 根据参数进行初始化
     Mat6d noise_gyro_acce_ = Mat6d::Zero();  // 测量噪声矩阵
@@ -310,3 +311,54 @@ void EdgeInertial::linearizeOplus() {
   _jacobianOplus[5].block<3, 3>(3, 0) = R1T.matrix(); // OK
 }
 ```
+2. 之前状态的约束
+```c++
+void EdgePriorPoseNavState::computeError() {
+    auto* vp = dynamic_cast<const VertexPose*>(_vertices[0]);
+    auto* vv = dynamic_cast<const VertexVelocity*>(_vertices[1]);
+    auto* vg = dynamic_cast<const VertexGyroBias*>(_vertices[2]);
+    auto* va = dynamic_cast<const VertexAccBias*>(_vertices[3]);
+
+    const Vec3d er = SO3(state_.R_.matrix().transpose() * vp->estimate().so3().matrix()).log();
+    const Vec3d ep = vp->estimate().translation() - state_.p_;
+    const Vec3d ev = vv->estimate() - state_.v_;
+    const Vec3d ebg = vg->estimate() - state_.bg_;
+    const Vec3d eba = va->estimate() - state_.ba_;
+
+    _error << er, ep, ev, ebg, eba;
+}
+
+void EdgePriorPoseNavState::linearizeOplus() {
+    const auto* vp = dynamic_cast<const VertexPose*>(_vertices[0]);
+    const Vec3d er = SO3(state_.R_.matrix().transpose() * vp->estimate().so3().matrix()).log();
+
+    /// 注意有3个index, 顶点的，自己误差的，顶点内部变量的
+    _jacobianOplus[0].setZero();
+    // 根据一阶近似展开
+    _jacobianOplus[0].block<3, 3>(0, 0) = SO3::jr_inv(er);    // dr/dr
+    _jacobianOplus[0].block<3, 3>(3, 3) = Mat3d::Identity();  // dp/dp
+    _jacobianOplus[1].setZero();
+    _jacobianOplus[1].block<3, 3>(6, 0) = Mat3d::Identity();  // dv/dv
+    _jacobianOplus[2].setZero();
+    _jacobianOplus[2].block<3, 3>(9, 0) = Mat3d::Identity();  // dbg/dbg
+    _jacobianOplus[3].setZero();
+    _jacobianOplus[3].block<3, 3>(12, 0) = Mat3d::Identity();  // dba/dba
+}
+
+```
+### 协方差的使用
+协方差在计算中使用其逆作为信息矩阵。
+```c++
+  Eigen::Matrix<double, 24, 24> GetHessian() {
+    linearizeOplus();
+    Eigen::Matrix<double, 9, 24> J;
+    J.block<9, 6>(0, 0) = _jacobianOplus[0];
+    J.block<9, 3>(0, 6) = _jacobianOplus[1];
+    J.block<9, 3>(0, 9) = _jacobianOplus[2];
+    J.block<9, 3>(0, 12) = _jacobianOplus[3];
+    J.block<9, 6>(0, 15) = _jacobianOplus[4];
+    J.block<9, 3>(0, 21) = _jacobianOplus[5];
+    return J.transpose() * information() * J;
+  }
+```
+note：在slam14讲 p128中 $j^T$和这儿$j$一致，
