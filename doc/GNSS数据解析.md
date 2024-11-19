@@ -7,6 +7,8 @@ IMU 1624426287.22854877 0.000680678408277777028 -0.000532325421858261482 0.00065
 GNSS行：分别为时间搓，维度，经度，高度，方向角，方向角是否有效。
 1. 方向角可能无效
 2. 方向角分东北天和北东天两种，需要转换。
+## GNSS的外参
+1. 思考一下两个坐标系中坐标如何转换
 ## 使用方法
 ```c++
 bool ConvertGps2UTM(GNSS& gps_msg, const Vec2d& antenna_pos, const double& antenna_angle, const Vec3d& map_origin) {
