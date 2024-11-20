@@ -41,24 +41,24 @@ $$
 ## 如何做
 字母上方由~的表示可以直接从IMU中读取或者计算，没有的为实际值。
 ### 原始模型
-![alt text](image-6.png)
-![alt text](image-7.png)
+![alt text](image/image-6.png)
+![alt text](image/image-7.png)
 ### 将之前的状态变量移除
-![alt text](image-8.png)
+![alt text](image/image-8.png)
 ### 将观测到的变量和不确定误差分离
-![alt text](image-9.png)
+![alt text](image/image-9.png)
 ### 计算上述过程中的噪声模型（并递推为累加模式）
-![alt text](image-10.png)
+![alt text](image/image-10.png)
 ### 零偏的更新
 一般情况下不会发生或者很小。上述模型中，当零偏发生时需要重新计算。此处用一阶展开代替。并写成递推模式
-![alt text](image-11.png)
+![alt text](image/image-11.png)
 
 至此完成了图优化的分解
 
 ## 基于图优化的使用
-![alt text](image-12.png)
+![alt text](image/image-12.png)
 残差的定义，考虑原始模型中如何提取状态无关变量。 
-![alt text](image-13.png)
+![alt text](image/image-13.png)
 
 
 考虑如何使残差减少。
@@ -66,22 +66,22 @@ $$
 ### 雅可比矩阵
 雅可比矩阵主要用于优化$R_i,R_j,V_i,V_j,P_i,P_j$这些变量，求解过程中预计分不发生改变（零偏变化，预计分要变化）。 所以要求残差对$R_i,R_j,V_i,V_j,P_i,P_j$的导数。
 - R的残差对$R_i,R_j$的导数
-![alt text](image-14.png)
+![alt text](image/image-14.png)
 - 对$b_g&
-![alt text](image-15.png)
+![alt text](image/image-15.png)
 实际使用中，考虑是否要优化$b_g&
 - v速度的残差对$V_i,V_j, R_i$的导数
-![alt text](image-16.png)
+![alt text](image/image-16.png)
 -  v速度的残差对$ b_a, b_g$的导数（取负号），因为$b_a,b_g与\delta v_{ij}$有关
 
-![alt text](image-17.png)
+![alt text](image/image-17.png)
 
 - P对$b_a, b_g$的导数(取负号)
 
-![alt text](image-18.png)
+![alt text](image/image-18.png)
 - P对$V_i,p_i,p_j,R_i$的导数
 
-![alt text](image-19.png)
+![alt text](image/image-19.png)
 
 # 源码部分
 ## 预计分中IMU积分
@@ -166,7 +166,7 @@ void IMUPreintegration::Integrate(const IMU &imu, double dt) {
 }
 ```
 ## 预积分边
-![alt text](image-20.png)
+![alt text](image/image-20.png)
 预计分的边一共约束上上一时刻15维状态和下一时刻9维状态，复杂。
 1. 思考多个残差对同一个变量有约束条件如何表示。
 2. 思考变量维数不同不同如何处理。
