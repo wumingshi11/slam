@@ -67,6 +67,7 @@ NDT的ICP方法基于的迭代优化实现。也可之间计算数值点，但�
         }
 
         Vec6d dx = H.inverse() * err;
+        // pose 为全局，不只是包含残差
         pose.so3() = pose.so3() * SO3::exp(dx.head<3>());
         pose.translation() += dx.tail<3>();
 ```

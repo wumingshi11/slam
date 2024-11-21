@@ -1,5 +1,5 @@
 # 基于松耦合的LIO
-LIO = Lidar-IMU-Odometry。即基于激光雷达和IMU的里程计。此外还可以考虑频率较低的RTK数据。
+LIO = Lidar-IMU-Odometry。即基于激光雷达和IMU的里程计。此外还可以考虑频率较低的RTK数据。 原理查看从卡尔曼滤波导组合导航
 一次要耦合的数据
 ```c++
 /// IMU 数据与雷达同步
