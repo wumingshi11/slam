@@ -1,5 +1,6 @@
 # ivox
 本片主要看iovx的线性化实现。相对简单
+ivox中node 进行hash,是为了将三维数据变为一维，便于索引。
 ## 主要数据结构
 ```c++
     std::unordered_map<KeyType, typename std::list<std::pair<KeyType, NodeType>>::iterator, hash_vec<dim>>
